@@ -1,0 +1,3 @@
+kind: feature
+body: '**`unifi_setting`: new `ips.ad_blocking_network_ids`.** Manages ad blocking (Settings > Security > Ad Blocking): a non-empty list turns it on for exactly those networks, `[]` turns it off. Read from the controller when not set, and populated on import. Requires the go-unifi change that adds the ad blocking keys to the ips setting.'
+time: 2026-11-07T11:02:31.801939-06:00

@@ -292,6 +292,7 @@ type settingIpsModel struct {
 	ContentFilteringBlockingPageEnabled types.Bool   `tfsdk:"content_filtering_blocking_page_enabled"`
 	EnabledCategories                   types.List   `tfsdk:"enabled_categories"`
 	EnabledNetworks                     types.List   `tfsdk:"enabled_networks"`
+	AdBlockingNetworkIDs                types.List   `tfsdk:"ad_blocking_network_ids"`
 	Honeypot                            types.List   `tfsdk:"honeypot"`
 	HoneypotEnabled                     types.Bool   `tfsdk:"honeypot_enabled"`
 	IPSMode                             types.String `tfsdk:"ips_mode"`
@@ -553,6 +554,7 @@ var (
 		"content_filtering_blocking_page_enabled": types.BoolType,
 		"enabled_categories":                      types.ListType{ElemType: types.StringType},
 		"enabled_networks":                        types.ListType{ElemType: types.StringType},
+		"ad_blocking_network_ids":                 types.ListType{ElemType: types.StringType},
 		"honeypot_enabled":                        types.BoolType,
 		"honeypot": types.ListType{
 			ElemType: types.ObjectType{AttrTypes: ipsHoneypotAttrTypes},
@@ -1100,6 +1102,18 @@ func (r *settingResource) Schema(
 						Optional:            true,
 						Computed:            true,
 						ElementType:         types.StringType,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"ad_blocking_network_ids": schema.ListAttribute{
+						MarkdownDescription: "Network IDs to block ads on (Settings > Security > Ad " +
+							"Blocking), in the controller's order. A non-empty list turns ad " +
+							"blocking on for exactly those networks; `[]` turns it off. Taken " +
+							"from the controller when not set.",
+						Optional:    true,
+						Computed:    true,
+						ElementType: types.StringType,
 						PlanModifiers: []planmodifier.List{
 							listplanmodifier.UseStateForUnknown(),
 						},
@@ -6105,6 +6119,24 @@ func (r *settingResource) ipsModelToSetting(
 			return setting, suppression
 		}
 	}
+	if !model.AdBlockingNetworkIDs.IsNull() && !model.AdBlockingNetworkIDs.IsUnknown() {
+		var ids []string
+		diags.Append(model.AdBlockingNetworkIDs.ElementsAs(ctx, &ids, false)...)
+		if diags.HasError() {
+			return setting, suppression
+		}
+		// An empty list switches ad blocking off and, like the UI, leaves the
+		// stored networks in place.
+		setting.AdBlockingEnabled = new(len(ids) > 0)
+		if len(ids) > 0 {
+			setting.AdBlockingConfigurations = make(
+				[]settings.SettingIpsAdBlockingConfigurations, len(ids),
+			)
+			for i, id := range ids {
+				setting.AdBlockingConfigurations[i].NetworkID = id
+			}
+		}
+	}
 	if !model.Honeypot.IsNull() && !model.Honeypot.IsUnknown() {
 		var honeypots []settingIpsHoneypotModel
 		diags.Append(model.Honeypot.ElementsAs(ctx, &honeypots, false)...)
@@ -6260,6 +6292,22 @@ func (r *settingResource) ipsSettingToModel(
 		model.EnabledNetworks = listVal
 	} else {
 		model.EnabledNetworks = types.ListNull(types.StringType)
+	}
+
+	// Ad blocking reads as the networks it is on for, or [] when the switch is
+	// off, whatever networks are still stored.
+	if !plan.AdBlockingNetworkIDs.IsNull() && !plan.AdBlockingNetworkIDs.IsUnknown() {
+		ids := []string{}
+		if setting.AdBlockingEnabled != nil && *setting.AdBlockingEnabled {
+			for _, c := range setting.AdBlockingConfigurations {
+				ids = append(ids, c.NetworkID)
+			}
+		}
+		listVal, d := types.ListValueFrom(ctx, types.StringType, ids)
+		diags.Append(d...)
+		model.AdBlockingNetworkIDs = listVal
+	} else {
+		model.AdBlockingNetworkIDs = types.ListNull(types.StringType)
 	}
 
 	honeypotType := types.ObjectType{AttrTypes: ipsHoneypotAttrTypes}

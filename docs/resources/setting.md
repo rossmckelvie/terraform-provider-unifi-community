@@ -350,6 +350,7 @@ Optional:
 
 Optional:
 
+- `ad_blocking_network_ids` (List of String) Network IDs to block ads on (Settings > Security > Ad Blocking), in the controller's order. A non-empty list turns ad blocking on for exactly those networks; `[]` turns it off. Taken from the controller when not set.
 - `advanced_filtering_preference` (String) Advanced filtering mode: manual or disabled.
 - `content_filtering_blocking_page_enabled` (Boolean) Show a blocking page when content filtering blocks a request.
 - `enabled_categories` (List of String) Emerging Threats ruleset categories to enable (e.g. "emerging-malware", "tor", "phishing").
