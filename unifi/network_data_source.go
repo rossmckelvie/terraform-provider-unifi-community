@@ -48,6 +48,7 @@ type networkDataSourceModel struct {
 	SettingPreference      types.String `tfsdk:"setting_preference"`
 	InternetAccess         types.Bool   `tfsdk:"internet_access"`
 	IgmpSnooping           types.Bool   `tfsdk:"igmp_snooping"`
+	UPnPLanEnabled         types.Bool   `tfsdk:"upnp_lan_enabled"`
 	MulticastDNS           types.Bool   `tfsdk:"multicast_dns"`
 	GatewayType            types.String `tfsdk:"gateway_type"`
 	IPv6                   types.Object `tfsdk:"ipv6"`
@@ -219,6 +220,10 @@ func (d *networkDataSource) Schema(
 			},
 			"igmp_snooping": schema.BoolAttribute{
 				MarkdownDescription: "Specifies whether IGMP snooping is enabled.",
+				Computed:            true,
+			},
+			"upnp_lan_enabled": schema.BoolAttribute{
+				MarkdownDescription: "Specifies whether the gateway's UPnP service answers on this network.",
 				Computed:            true,
 			},
 			"multicast_dns": schema.BoolAttribute{
@@ -710,6 +715,7 @@ func (d *networkDataSource) setDataSourceData(
 	model.SettingPreference = types.StringPointerValue(network.SettingPreference)
 	model.InternetAccess = types.BoolValue(network.InternetAccessEnabled)
 	model.IgmpSnooping = types.BoolValue(network.IGMPSnooping)
+	model.UPnPLanEnabled = types.BoolValue(network.UPnPLanEnabled)
 	model.MulticastDNS = types.BoolValue(network.MdnsEnabled)
 	model.GatewayType = types.StringPointerValue(network.GatewayType)
 	model.LteLan = types.BoolPointerValue(network.LteLanEnabled)

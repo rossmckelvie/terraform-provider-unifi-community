@@ -1,0 +1,3 @@
+kind: feature
+body: '**`unifi_network`: new `upnp_lan_enabled`.** Manages the per-network UPnP opt-in, so UPnP can be limited to the networks that need it (for example a gaming VLAN). Read from the controller when not set. Requires the go-unifi fix that sends the key for corporate and guest networks.'
+time: 2026-11-07T10:57:46.366807-06:00

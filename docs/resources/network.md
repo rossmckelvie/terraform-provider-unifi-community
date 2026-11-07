@@ -127,6 +127,7 @@ resource "unifi_network" "third_party" {
 - `subnet` (String) The network's gateway IP and prefix in CIDR notation. The host portion is the gateway address the controller assigns — it need not be the first usable address: `10.0.10.1/24` uses gateway `10.0.10.1`, while `10.0.10.254/24` uses gateway `10.0.10.254` on the same subnet. Optional: it is not required for `vlan_only` networks (`third_party_gateway = true`), where the UniFi controller does not manage the subnet.
 - `third_party_gateway` (Boolean) Specifies whether this network uses a third-party gateway. When enabled, the network purpose is set to `vlan-only` and only VLAN ID, DHCP guarding, and basic network settings are configured. Read from the network's purpose when not set, so an imported `vlan-only` network is not planned back to `false` (#544).
 - `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
+- `upnp_lan_enabled` (Boolean) Specifies whether the gateway's UPnP service answers on this network (Settings > Internet > UPnP, per network). UPnP itself is enabled site-wide with `unifi_setting`'s `usg.upnp`. Applies to `corporate` and `guest` networks. Taken from the controller when not set.
 - `vlan` (Number) The VLAN ID for the network.
 
 ### Read-Only

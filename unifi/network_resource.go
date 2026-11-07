@@ -391,6 +391,7 @@ type networkResourceModel struct {
 	SettingPreference      types.String         `tfsdk:"setting_preference"`
 	InternetAccess         types.Bool           `tfsdk:"internet_access"`
 	IgmpSnooping           types.Bool           `tfsdk:"igmp_snooping"`
+	UPnPLanEnabled         types.Bool           `tfsdk:"upnp_lan_enabled"`
 	MulticastDNS           types.Bool           `tfsdk:"multicast_dns"`
 	GatewayType            types.String         `tfsdk:"gateway_type"`
 	IPv6                   types.Object         `tfsdk:"ipv6"`
@@ -583,6 +584,17 @@ func (r *networkResource) Schema(
 			"igmp_snooping": schema.BoolAttribute{
 				MarkdownDescription: "Specifies whether IGMP snooping is enabled. Taken from the " +
 					"controller when not set (#544).",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"upnp_lan_enabled": schema.BoolAttribute{
+				MarkdownDescription: "Specifies whether the gateway's UPnP service answers on this " +
+					"network (Settings > Internet > UPnP, per network). UPnP itself is " +
+					"enabled site-wide with `unifi_setting`'s `usg.upnp`. Applies to " +
+					"`corporate` and `guest` networks. Taken from the controller when not set.",
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
@@ -2281,6 +2293,7 @@ func (r *networkResource) modelToNetwork(
 		VLANEnabled:             !model.Vlan.IsNull() && !model.Vlan.IsUnknown(),
 		Enabled:                 boolPointerIfKnown(model.Enabled),
 		IGMPSnooping:            model.IgmpSnooping.ValueBool(),
+		UPnPLanEnabled:          model.UPnPLanEnabled.ValueBool(),
 		IPAliases:               []string{},
 	}
 
@@ -2785,6 +2798,7 @@ func (r *networkResource) networkToModel(
 	model.Name = types.StringPointerValue(network.Name)
 	model.Enabled = networkEnabled(network.Enabled)
 	model.IgmpSnooping = types.BoolValue(network.IGMPSnooping)
+	model.UPnPLanEnabled = types.BoolValue(network.UPnPLanEnabled)
 	model.NetworkIsolation = types.BoolValue(network.NetworkIsolationEnabled)
 
 	// Set third_party_gateway based on API purpose
