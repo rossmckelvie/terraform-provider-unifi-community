@@ -49,6 +49,7 @@ output "client_qos_max_down" {
 ### Read-Only
 
 - `blocked` (Boolean) Specifies whether this client should be blocked from the network.
+- `dev_id_override` (Number) The device type this client was set to with **Change Device Type**, or `0` when it has no override.
 - `display_name` (String) The display name of the client.
 - `fixed_ap_mac` (String) The MAC address of the access point to which this client should be fixed.
 - `fixed_ip` (String) A fixed IPv4 address for this client.

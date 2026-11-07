@@ -1,0 +1,3 @@
+kind: feature
+body: '**`unifi_client`: new `dev_id_override`.** Manages the device type a client is shown as (**Change Device Type** in the UI), set through the fingerprint endpoint; `0` clears it. Read from the controller when not set, and also exposed on the `unifi_client` data source. Requires the go-unifi change that decodes `dev_id_override`, which UniFi Network 11 sends as a string.'
+time: 2026-11-07T11:00:47.569073-06:00

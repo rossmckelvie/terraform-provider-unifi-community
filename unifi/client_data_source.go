@@ -43,6 +43,7 @@ type clientDataSourceModel struct {
 	NetworkID      types.String        `tfsdk:"network_id"`
 	Groups         types.List          `tfsdk:"groups"`
 	Blocked        types.Bool          `tfsdk:"blocked"`
+	DevIdOverride  types.Int64         `tfsdk:"dev_id_override"`
 	LocalDNSRecord types.String        `tfsdk:"local_dns_record"`
 	Hostname       types.String        `tfsdk:"hostname"`
 	Timeouts       timeouts.Value      `tfsdk:"timeouts"`
@@ -134,6 +135,10 @@ func (d *clientDataSource) Schema(
 			},
 			"blocked": schema.BoolAttribute{
 				MarkdownDescription: "Specifies whether this client should be blocked from the network.",
+				Computed:            true,
+			},
+			"dev_id_override": schema.Int64Attribute{
+				MarkdownDescription: "The device type this client was set to with **Change Device Type**, or `0` when it has no override.",
 				Computed:            true,
 			},
 			"local_dns_record": schema.StringAttribute{
@@ -317,6 +322,7 @@ func (d *clientDataSource) Read(
 	}
 
 	state.Blocked = types.BoolPointerValue(client.Blocked)
+	state.DevIdOverride = types.Int64Value(devIdOverrideValue(client.DevIdOverride))
 
 	if client.LocalDNSRecord != "" {
 		state.LocalDNSRecord = types.StringValue(client.LocalDNSRecord)

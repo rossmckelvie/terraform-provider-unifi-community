@@ -48,6 +48,7 @@ resource "unifi_client" "test" {
 
 - `allow_existing` (Boolean) Specifies whether this resource should just take over control of an existing client.
 - `blocked` (Boolean) Specifies whether this client should be blocked from the network. Taken from the controller when not set, so adopting a blocked client does not unblock it.
+- `dev_id_override` (Number) The device type this client is shown as, as set with **Change Device Type** in the UniFi UI: the ID of a fingerprint in the controller's device database, which picks the client's name and icon. `0` clears the override so the controller's own fingerprint applies again. Taken from the controller when not set.
 - `display_name` (String) The display name of the client.
 - `fixed_ap_mac` (String) The MAC address of the access point to which this client should be fixed. Read as null while AP pinning is disabled.
 - `fixed_ip` (String) A fixed IPv4 address for this client. Set to an empty string to clear a previously assigned fixed IP.

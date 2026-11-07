@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-nettypes/hwtypes"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -21,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -98,6 +100,7 @@ type clientResourceModel struct {
 	Groups         types.List         `tfsdk:"groups"`
 	Blocked        types.Bool         `tfsdk:"blocked"`
 	LocalDNSRecord types.String       `tfsdk:"local_dns_record"`
+	DevIdOverride  types.Int64        `tfsdk:"dev_id_override"`
 
 	// These control import and create behavior to allow the resource to take over existing clients instead of erroring, and to allow it to just be removed from Terraform management without deleting in UniFi.
 	AllowExisting       types.Bool `tfsdk:"allow_existing"`
@@ -302,6 +305,21 @@ Clients are created in the controller when observed on the network, so the resou
 					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"dev_id_override": schema.Int64Attribute{
+				MarkdownDescription: "The device type this client is shown as, as set with **Change " +
+					"Device Type** in the UniFi UI: the ID of a fingerprint in the controller's " +
+					"device database, which picks the client's name and icon. `0` clears the " +
+					"override so the controller's own fingerprint applies again. Taken from " +
+					"the controller when not set.",
+				Optional: true,
+				Computed: true,
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+				},
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
 			"local_dns_record": schema.StringAttribute{
 				MarkdownDescription: "Specifies the local DNS record for this client.",
 				Optional:            true,
@@ -457,6 +475,13 @@ func (r *clientResource) Create(
 	createdClient, diags = r.reconcileCreatedClient(ctx, site, createdClient, client)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// The device type has its own endpoint and needs the client to exist.
+	createdClient, err = r.setDevIdOverride(ctx, site, createdClient, plan.DevIdOverride)
+	if err != nil {
+		resp.Diagnostics.AddError("Error Setting Client Device Type", err.Error())
 		return
 	}
 
@@ -733,7 +758,13 @@ func (r *clientResource) Update(
 		return
 	}
 
-	// Step 3: Merge the plan changes into the current client
+	// Step 3: Set the device type, which has its own endpoint, then merge the
+	// plan changes into the re-read client.
+	currentClient, err = r.setDevIdOverride(ctx, site, currentClient, plan.DevIdOverride)
+	if err != nil {
+		resp.Diagnostics.AddError("Error Setting Client Device Type", err.Error())
+		return
+	}
 	mergedClient := r.mergeClient(currentClient, planClient)
 
 	// Step 4: Update the client via API
@@ -804,6 +835,9 @@ func (r *clientResource) applyPlanToState(
 	}
 	if !plan.LocalDNSRecord.IsNull() && !plan.LocalDNSRecord.IsUnknown() {
 		state.LocalDNSRecord = plan.LocalDNSRecord
+	}
+	if !plan.DevIdOverride.IsNull() && !plan.DevIdOverride.IsUnknown() {
+		state.DevIdOverride = plan.DevIdOverride
 	}
 	if !plan.AllowExisting.IsNull() && !plan.AllowExisting.IsUnknown() {
 		state.AllowExisting = plan.AllowExisting
@@ -1150,6 +1184,7 @@ func (r *clientResource) clientToModel(
 	// the controller means by omitting it) instead of null, so the attribute is
 	// always known after a read and UseStateForUnknown can carry it.
 	model.Blocked = types.BoolValue(client.Blocked != nil && *client.Blocked)
+	model.DevIdOverride = types.Int64Value(devIdOverrideValue(client.DevIdOverride))
 
 	// #387: when the local DNS record is disabled the controller keeps echoing the
 	// stale record string, so trusting it produces an inconsistent-result-after-apply
@@ -1207,7 +1242,49 @@ func (r *clientResource) mergeClient(
 	merged.FixedApMAC = planned.FixedApMAC
 	merged.FixedApEnabled = planned.FixedApMAC != ""
 
+	// The device type is set through the fingerprint endpoint
+	// (setDevIdOverride), not the client PUT. Echoing the value read before
+	// that call could undo it.
+	merged.DevIdOverride = nil
+
 	return &merged
+}
+
+// devIdOverrideValue reads a client's device-type override; no override is 0.
+func devIdOverrideValue(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// devIdOverrideChange reports the device-type override to set, if the planned
+// value is known and differs from the controller's current one.
+func devIdOverrideChange(current *int64, planned types.Int64) (int64, bool) {
+	if planned.IsNull() || planned.IsUnknown() {
+		return 0, false
+	}
+	want := planned.ValueInt64()
+	return want, want != devIdOverrideValue(current)
+}
+
+// setDevIdOverride applies a planned device-type override through the
+// fingerprint endpoint and re-reads the client, so state reflects the
+// controller. It returns client unchanged when there is nothing to set.
+func (r *clientResource) setDevIdOverride(
+	ctx context.Context,
+	site string,
+	client *unifi.Client,
+	planned types.Int64,
+) (*unifi.Client, error) {
+	want, changed := devIdOverrideChange(client.DevIdOverride, planned)
+	if !changed {
+		return client, nil
+	}
+	if err := r.client.OverrideClientFingerprint(ctx, site, client.MAC, want); err != nil {
+		return nil, fmt.Errorf("setting the device type of %s: %w", client.MAC, err)
+	}
+	return r.client.GetClient(ctx, site, client.ID)
 }
 
 func (r *clientResource) ListResourceConfigSchema(
